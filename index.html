@@ -1,0 +1,1494 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trackers</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    /* ── TOKENS ── */
+    :root {
+      --bg: #09090b;
+      --surface: #111114;
+      --surface-2: #18181c;
+      --border: rgba(255,255,255,0.07);
+      --border-hi: rgba(255,255,255,0.13);
+      --text: #fafafa;
+      --text-2: #a1a1aa;
+      --text-3: #52525b;
+      --accent: oklch(0.62 0.22 265);
+      --accent-hi: oklch(0.68 0.22 265);
+      --accent-dim: oklch(0.62 0.22 265 / 0.14);
+      --violet: oklch(0.62 0.2 295);
+      --green: oklch(0.72 0.17 162);
+      --amber: oklch(0.78 0.17 78);
+      --red: oklch(0.65 0.2 22);
+      --r: 14px;
+      --r-sm: 9px;
+      --mono: 'JetBrains Mono', monospace;
+    }
+    body.nebula {
+      --bg: #0c0b14;
+      --surface: #13111e;
+      --surface-2: #1a1828;
+      --border: rgba(139,92,246,0.1);
+      --border-hi: rgba(139,92,246,0.22);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Outfit', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Grain overlay */
+    body::after {
+      content: ''; position: fixed; inset: 0; z-index: 999; pointer-events: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+      opacity: 0.55;
+    }
+
+    .wrap { max-width: 900px; margin: 0 auto; padding: 52px 32px 96px; }
+
+    /* ── HEADER ── */
+    .hdr { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 56px; }
+    .hdr-left h1 { font-size: 20px; font-weight: 600; letter-spacing: -0.02em; }
+    .hdr-left .date { font-size: 13px; color: var(--text-3); margin-top: 5px; }
+    .hdr-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+    .time-inp {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm);
+      padding: 7px 11px; font-size: 13px; font-family: inherit; color: var(--text);
+      outline: none; transition: border-color .2s;
+    }
+    .time-inp:focus { border-color: oklch(0.62 0.22 265 / 0.5); }
+    input[type="time"]::-webkit-calendar-picker-indicator { filter: invert(0.4); cursor: pointer; }
+
+    .notif-btn {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm);
+      padding: 7px 14px; font-size: 12px; font-weight: 500; font-family: inherit;
+      color: var(--text-3); cursor: pointer; transition: all .15s; white-space: nowrap;
+    }
+    .notif-btn:hover { border-color: var(--border-hi); color: var(--text-2); }
+
+    /* ── TABS ── */
+    .tab-nav { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 44px; }
+    .tab-btn {
+      background: none; border: none; cursor: pointer; font-family: 'Outfit', sans-serif;
+      font-size: 14px; font-weight: 500; color: var(--text-3);
+      padding: 10px 22px 13px; position: relative; transition: color .2s; letter-spacing: .01em;
+    }
+    .tab-btn::after {
+      content: ''; position: absolute; bottom: -1px; left: 16px; right: 16px;
+      height: 2px; background: var(--accent); border-radius: 2px 2px 0 0;
+      opacity: 0; transition: opacity .2s;
+    }
+    .tab-btn.active { color: var(--text); }
+    .tab-btn.active::after { opacity: 1; }
+    .tab-btn:hover:not(.active) { color: var(--text-2); }
+
+    .timer-pip {
+      display: inline-block; width: 5px; height: 5px; border-radius: 50%;
+      background: var(--accent); margin-left: 5px; vertical-align: middle;
+      animation: blink 1.5s ease-in-out infinite;
+    }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* ── STAT CARDS ── */
+    .stat-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; margin-bottom: 28px; }
+    .stat-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--r);
+      padding: 24px 22px; transition: border-color .2s;
+    }
+    .stat-card:hover { border-color: var(--border-hi); }
+    .stat-val {
+      font-family: var(--mono); font-size: 30px; font-weight: 500;
+      letter-spacing: -0.04em; color: var(--text); line-height: 1; margin-bottom: 10px;
+    }
+    .stat-val.ok { color: var(--green); }
+    .stat-val.amber { color: var(--amber); }
+    .stat-lbl { font-size: 11px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: .09em; }
+    .stat-bar { margin-top: 18px; height: 2px; background: var(--surface-2); border-radius: 2px; overflow: hidden; }
+    .stat-bar-fill { height: 100%; border-radius: 2px; transition: width .7s cubic-bezier(0.34,1.2,0.64,1); }
+
+    /* ── BOX / TABLE ── */
+    .box {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--r); overflow: hidden; margin-bottom: 20px;
+      transition: border-color .2s;
+    }
+    .box:hover { border-color: var(--border-hi); }
+    .box-head { display: flex; align-items: center; padding: 15px 24px; border-bottom: 1px solid var(--border); }
+    .box-head-title { font-size: 11px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: .09em; flex: 1; }
+    .box-head-meta { font-size: 12px; color: var(--text-3); }
+    .box-head-meta b { color: var(--text-2); font-weight: 500; }
+
+    /* ── SECTION CARD (padded box) ── */
+    .sc {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--r); padding: 24px; margin-bottom: 20px;
+      transition: border-color .2s;
+    }
+    .sc:hover { border-color: var(--border-hi); }
+    .sc-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .09em; color: var(--text-3); margin-bottom: 20px; }
+
+    /* ── EMPTY ── */
+    .empty { padding: 64px 24px; text-align: center; color: var(--text-3); font-size: 14px; line-height: 1.6; }
+
+    /* ── INPUTS & BUTTONS ── */
+    .add-row { display: flex; gap: 10px; }
+    .inp {
+      flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm);
+      padding: 11px 16px; font-size: 14px; font-family: 'Outfit', sans-serif; color: var(--text);
+      outline: none; transition: border-color .2s;
+    }
+    .inp::placeholder { color: var(--text-3); }
+    .inp:focus { border-color: oklch(0.62 0.22 265 / 0.5); }
+
+    .inp-sm {
+      flex: 1; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-sm);
+      padding: 9px 13px; font-size: 13px; font-family: 'Outfit', sans-serif; color: var(--text);
+      outline: none; transition: border-color .2s;
+    }
+    .inp-sm::placeholder { color: var(--text-3); }
+    .inp-sm:focus { border-color: oklch(0.62 0.22 265 / 0.5); }
+
+    .num-inp {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm);
+      padding: 10px 14px; font-size: 14px; font-family: 'Outfit', sans-serif; color: var(--text);
+      outline: none; transition: border-color .2s; width: 110px; text-align: right;
+    }
+    .num-inp::placeholder { color: var(--text-3); }
+    .num-inp:focus { border-color: oklch(0.62 0.22 265 / 0.5); }
+
+    .btn {
+      background: var(--accent); color: #fff; border: none; border-radius: var(--r-sm);
+      padding: 11px 20px; font-size: 14px; font-weight: 600; font-family: 'Outfit', sans-serif;
+      cursor: pointer; transition: opacity .15s, transform .1s; white-space: nowrap;
+    }
+    .btn:hover { opacity: .85; }
+    .btn:active { transform: scale(.98); }
+    .btn.danger { background: var(--red); }
+    .btn.ghost {
+      background: var(--surface-2); border: 1px solid var(--border); color: var(--text-2);
+    }
+    .btn.ghost:hover { border-color: var(--border-hi); color: var(--text); opacity: 1; }
+    .btn.sm { padding: 9px 16px; font-size: 13px; }
+
+    .btn-sm {
+      background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-sm);
+      padding: 9px 14px; font-size: 13px; font-weight: 600; font-family: 'Outfit', sans-serif;
+      color: var(--text-2); cursor: pointer; transition: all .15s; white-space: nowrap;
+    }
+    .btn-sm:hover { border-color: var(--accent); color: var(--text); }
+
+    /* ── ACT BUTTONS (edit/delete, hidden until hover) ── */
+    .act-btn {
+      background: none; border: none; cursor: pointer; font-size: 11px; color: var(--text-3);
+      padding: 2px 4px; opacity: 0; transition: opacity .12s, color .12s; font-family: inherit; line-height: 1;
+    }
+    .act-btn:hover { color: var(--text-2); }
+    .act-btn.del:hover { color: var(--red); }
+    .habit-row:hover .act-btn,
+    .proj-row:hover .act-btn,
+    .obj-card:hover .obj-act,
+    .kr-row:hover .act-btn,
+    .wt-row:hover .act-btn { opacity: 1; }
+
+    /* ── WEEKLY BAR CHART (habits) ── */
+    .week-bars { display: flex; gap: 7px; height: 72px; }
+    .week-bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 7px; }
+    .week-bar-track {
+      flex: 1; width: 100%; background: var(--surface-2); border-radius: 4px;
+      position: relative; overflow: hidden;
+    }
+    .week-bar-fill {
+      position: absolute; bottom: 0; left: 0; right: 0; border-radius: 4px;
+      background: var(--accent); transition: height .7s cubic-bezier(0.34,1.2,0.64,1);
+    }
+    .week-bar-fill.today { box-shadow: 0 0 0 1.5px var(--accent); }
+    .week-bar-fill.future { background: transparent; }
+    .week-bar-lbl { font-size: 10px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: .06em; }
+    .week-bar-lbl.today { color: var(--accent); }
+
+    /* ── HABITS TABLE ── */
+    .day-col-heads { display: flex; gap: 8px; margin-right: 10px; }
+    .day-col-head { width: 36px; text-align: center; font-size: 10px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: .06em; }
+    .day-col-head.today { color: var(--accent); }
+    .streak-col-head { width: 52px; text-align: right; font-size: 10px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: .06em; }
+
+    .habit-row { display: flex; align-items: center; padding: 13px 24px; border-bottom: 1px solid var(--border); transition: background .12s; }
+    .habit-row:last-child { border-bottom: none; }
+    .habit-row:hover { background: var(--surface-2); }
+    .habit-name { flex: 1; font-size: 14px; font-weight: 500; color: var(--text); display: flex; align-items: center; gap: 6px; min-width: 0; }
+    .habit-name > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .day-cells { display: flex; gap: 8px; margin-right: 10px; flex-shrink: 0; }
+    .day-cell {
+      width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center;
+      justify-content: center; cursor: pointer; transition: background .12s; background: var(--surface-2);
+    }
+    .day-cell:hover:not(.future) { background: rgba(255,255,255,.09); }
+    .day-cell.done { background: var(--accent); }
+    .day-cell.done:hover { background: var(--accent-hi); }
+    .day-cell.today-ring { box-shadow: 0 0 0 1.5px var(--accent); }
+    .day-cell.future { background: transparent; cursor: default; opacity: .2; }
+    .day-cell svg { width: 13px; height: 13px; stroke: #fff; fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+    .streak-val { width: 52px; text-align: right; font-family: var(--mono); font-size: 13px; font-weight: 500; color: var(--amber); flex-shrink: 0; }
+
+    /* ── TIME TRACKER ── */
+    .live-banner {
+      background: var(--accent-dim); border: 1px solid oklch(0.62 0.22 265 / 0.25);
+      border-radius: var(--r); padding: 22px 24px; display: flex; align-items: center;
+      gap: 20px; margin-bottom: 32px;
+    }
+    .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: blink 1.5s ease-in-out infinite; flex-shrink: 0; }
+    .live-info { flex: 1; min-width: 0; }
+    .live-name { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: oklch(0.72 0.15 265); }
+    .live-clock { font-family: var(--mono); font-size: 28px; font-weight: 500; color: var(--text); letter-spacing: -0.03em; line-height: 1.1; margin-top: 4px; }
+
+    .proj-row { display: flex; align-items: center; padding: 16px 24px; border-bottom: 1px solid var(--border); transition: background .12s; }
+    .proj-row:last-child { border-bottom: none; }
+    .proj-row:hover { background: var(--surface-2); }
+    .proj-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-right: 18px; }
+    .proj-info { flex: 1; min-width: 0; }
+    .proj-title { font-size: 14px; font-weight: 500; color: var(--text); display: flex; align-items: center; gap: 7px; }
+    .proj-meta { font-size: 12px; color: var(--text-3); margin-top: 3px; }
+    .proj-meta b { color: var(--text-2); font-weight: 500; font-family: var(--mono); }
+    .proj-btn {
+      background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-sm);
+      padding: 7px 14px; font-size: 13px; font-weight: 600; font-family: 'Outfit', sans-serif;
+      color: var(--text-2); cursor: pointer; transition: all .15s; margin-left: 16px; flex-shrink: 0;
+    }
+    .proj-btn:hover { border-color: var(--accent); color: var(--text); }
+    .proj-btn.stop { background: oklch(0.65 0.2 22/0.12); border-color: oklch(0.65 0.2 22/0.35); color: var(--red); }
+    .proj-btn.stop:hover { background: oklch(0.65 0.2 22/0.22); }
+
+    .dist-row { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+    .dist-row:last-child { margin-bottom: 0; }
+    .dist-name { font-size: 13px; color: var(--text-2); width: 130px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .dist-bar-bg { flex: 1; height: 3px; background: var(--surface-2); border-radius: 3px; overflow: hidden; }
+    .dist-bar-fill { height: 100%; border-radius: 3px; transition: width .7s cubic-bezier(0.34,1.2,0.64,1); }
+    .dist-val { font-family: var(--mono); font-size: 11px; color: var(--text-3); width: 72px; text-align: right; flex-shrink: 0; }
+
+    /* ── OKR ── */
+    .obj-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 28px; margin-bottom: 14px; transition: border-color .2s; }
+    .obj-card:hover { border-color: var(--border-hi); }
+    .obj-title-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+    .obj-title { font-size: 16px; font-weight: 600; color: var(--text); letter-spacing: -0.01em; }
+    .obj-act { background: none; border: none; cursor: pointer; font-size: 11px; color: var(--text-3); padding: 2px 4px; opacity: 0; transition: opacity .12s, color .12s; font-family: inherit; }
+    .obj-act:hover { color: var(--text-2); }
+    .obj-act.del:hover { color: var(--red); }
+    .prog-wrap { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
+    .prog-bar { flex: 1; height: 2px; background: var(--surface-2); border-radius: 2px; overflow: hidden; }
+    .prog-fill { height: 100%; border-radius: 2px; transition: width .7s cubic-bezier(0.34,1.2,0.64,1); }
+    .prog-pct { font-family: var(--mono); font-size: 13px; font-weight: 500; width: 34px; text-align: right; flex-shrink: 0; }
+    .prog-count { font-size: 12px; color: var(--text-3); flex-shrink: 0; }
+    .kr-list { margin-bottom: 18px; }
+    .kr-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+    .kr-row:last-child { border-bottom: none; }
+    .kr-check { width: 16px; height: 16px; flex-shrink: 0; accent-color: var(--accent); cursor: pointer; }
+    .kr-text { flex: 1; font-size: 14px; color: var(--text-2); cursor: pointer; transition: color .12s; }
+    .kr-text.done { text-decoration: line-through; color: var(--text-3); }
+    .kr-add { display: flex; gap: 8px; padding-top: 16px; border-top: 1px solid var(--border); }
+
+    /* ── WEIGHT ── */
+    .wt-row { display: flex; align-items: center; gap: 10px; padding: 11px 24px; border-bottom: 1px solid var(--border); transition: background .12s; cursor: pointer; }
+    .wt-row:last-child { border-bottom: none; }
+    .wt-row:hover { background: var(--surface-2); }
+    .wt-row.highlighted { background: oklch(0.62 0.22 265 / 0.1); }
+    .wt-date { font-size: 13px; color: var(--text-2); min-width: 110px; flex-shrink: 0; }
+    .wt-kg { font-family: var(--mono); font-size: 14px; font-weight: 500; color: var(--text); min-width: 58px; flex-shrink: 0; }
+    .wt-delta { font-family: var(--mono); font-size: 12px; width: 40px; text-align: right; flex-shrink: 0; }
+    .wt-delta.neg { color: var(--green); }
+    .wt-delta.pos { color: var(--red); }
+    .wt-comment { flex: 1; font-size: 12px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; font-style: italic; }
+
+    /* Badges */
+    .badge { display: inline-flex; align-items: center; border-radius: 5px; padding: 2px 7px; font-size: 11px; font-weight: 600; letter-spacing: .04em; flex-shrink: 0; }
+    .badge-e-low  { background: oklch(0.65 0.2 22 / 0.15); color: var(--red); }
+    .badge-e-med  { background: oklch(0.78 0.17 78 / 0.15); color: var(--amber); }
+    .badge-e-hi   { background: oklch(0.72 0.17 162 / 0.15); color: var(--green); }
+    .badge-m-low  { background: oklch(0.65 0.2 22 / 0.12); color: oklch(0.75 0.18 22); }
+    .badge-m-ok   { background: oklch(0.62 0.22 265 / 0.12); color: oklch(0.72 0.15 265); }
+    .badge-m-good { background: oklch(0.78 0.17 78 / 0.12); color: var(--amber); }
+    .badge-m-great{ background: oklch(0.72 0.17 162 / 0.12); color: var(--green); }
+
+    /* Entry form */
+    .entry-grid { display: grid; grid-template-columns: 140px 120px 1fr 1fr; gap: 10px; align-items: flex-end; }
+    .entry-field label { display: block; font-size: 12px; color: var(--text-3); margin-bottom: 6px; }
+    .sel {
+      width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm);
+      padding: 9px 13px; font-size: 13px; font-family: 'Outfit', sans-serif; color: var(--text);
+      outline: none; transition: border-color .2s; cursor: pointer; appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24'%3E%3Cpath fill='%2352525b' d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 10px center; padding-right: 28px;
+    }
+    .sel:focus { border-color: oklch(0.62 0.22 265 / 0.5); }
+    .sel option { background: #18181c; }
+
+    /* Config */
+    .config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .config-field label { display: block; font-size: 12px; color: var(--text-3); margin-bottom: 6px; }
+
+    /* Conseil */
+    .conseil-card {
+      background: oklch(0.62 0.22 265 / 0.07); border: 1px solid oklch(0.62 0.22 265 / 0.2);
+      border-radius: var(--r); padding: 16px 20px; margin-bottom: 20px;
+    }
+    .conseil-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .09em; color: oklch(0.72 0.15 265); margin-bottom: 6px; }
+    .conseil-text { font-size: 13px; color: var(--text-2); line-height: 1.55; }
+
+    /* Chart */
+    .chart-wrap { width: 100%; overflow: hidden; }
+
+    /* Tooltip */
+    .wt-tip {
+      position: fixed; z-index: 200; background: var(--surface-2); border: 1px solid var(--border-hi);
+      border-radius: 10px; padding: 12px 14px; min-width: 170px; max-width: 240px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.55); pointer-events: none; transition: opacity .12s;
+    }
+    .wt-tip.hidden { display: none; }
+    .wt-tip-date { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--text-3); margin-bottom: 6px; }
+    .wt-tip-weight { font-family: var(--mono); font-size: 20px; font-weight: 500; color: var(--text); line-height: 1; margin-bottom: 8px; }
+
+    /* Body measurements */
+    .meas-grid { display: grid; grid-template-columns: 140px repeat(5, 1fr); gap: 10px; align-items: flex-end; }
+    .meas-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 10px 24px; border-bottom: 1px solid var(--border); }
+    .meas-row:last-child { border-bottom: none; }
+    .meas-date { font-size: 13px; color: var(--text-2); min-width: 110px; }
+    .meas-chip { font-size: 11px; color: var(--text-3); font-family: var(--mono); }
+    .meas-chip b { color: var(--text-2); font-weight: 500; }
+
+    @media (max-width: 680px) {
+      .entry-grid { grid-template-columns: 1fr 1fr; }
+      .config-grid { grid-template-columns: 1fr; }
+      .meas-grid { grid-template-columns: 1fr 1fr 1fr; }
+      .stat-grid.four { grid-template-columns: repeat(2,1fr); }
+    }
+
+    /* ── MODAL ── */
+    .modal-overlay {
+      position: fixed; inset: 0; z-index: 50; display: flex; align-items: center;
+      justify-content: center; padding: 24px; background: rgba(0,0,0,.72); backdrop-filter: blur(10px);
+    }
+    .modal-overlay.hidden { display: none; }
+    .modal-box {
+      background: var(--surface); border: 1px solid var(--border-hi); border-radius: 18px;
+      padding: 28px; width: 100%; max-width: 360px; box-shadow: 0 32px 64px rgba(0,0,0,.5);
+    }
+    .modal-title { font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+    .modal-msg { font-size: 14px; color: var(--text-2); margin-bottom: 20px; line-height: 1.5; }
+    .modal-inp {
+      width: 100%; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-sm);
+      padding: 10px 14px; font-size: 14px; font-family: 'Outfit', sans-serif; color: var(--text);
+      outline: none; margin-bottom: 20px; transition: border-color .2s;
+    }
+    .modal-inp:focus { border-color: oklch(0.62 0.22 265 / 0.5); }
+    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+    /* ── TWEAKS ── */
+    #tweaks-panel {
+      position: fixed; bottom: 24px; right: 24px; background: var(--surface);
+      border: 1px solid var(--border-hi); border-radius: 14px; padding: 18px 20px;
+      width: 200px; box-shadow: 0 12px 40px rgba(0,0,0,.45); z-index: 40; display: none;
+    }
+    #tweaks-panel h3 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .09em; color: var(--text-3); margin-bottom: 14px; }
+    .tw-opts { display: flex; gap: 6px; }
+    .tw-opt {
+      flex: 1; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
+      padding: 7px 4px; font-size: 11px; font-weight: 500; font-family: 'Outfit', sans-serif;
+      color: var(--text-3); cursor: pointer; text-align: center; transition: all .15s;
+    }
+    .tw-opt.on, .tw-opt:hover { border-color: var(--accent); color: var(--text); }
+
+    /* ── PROJECT COLORS ── */
+    .c0{background:#6366f1}.c1{background:#8b5cf6}.c2{background:#10b981}
+    .c3{background:#f59e0b}.c4{background:#ef4444}.c5{background:#06b6d4}
+    .c6{background:#ec4899}.c7{background:#84cc16}
+    .b0{background:#6366f1}.b1{background:#8b5cf6}.b2{background:#10b981}
+    .b3{background:#f59e0b}.b4{background:#ef4444}.b5{background:#06b6d4}
+    .b6{background:#ec4899}.b7{background:#84cc16}
+
+    /* ── ANIMATIONS ── */
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+    @keyframes modal-in { from{opacity:0;transform:scale(.95) translateY(6px)} to{opacity:1;transform:scale(1) translateY(0)} }
+    .modal-animate { animation: modal-in .18s cubic-bezier(0.34,1.2,0.64,1) both; }
+
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--surface-2); border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <!-- Header -->
+  <header class="hdr">
+    <div class="hdr-left">
+      <h1>Trackers</h1>
+      <p class="date" id="date-display"></p>
+    </div>
+    <div class="hdr-right">
+      <div style="display:flex;align-items:center;gap:7px">
+        <span style="font-size:12px;color:var(--text-3)">Rappel</span>
+        <input type="time" id="reminder-time" value="20:00" class="time-inp">
+      </div>
+      <button id="notif-btn" class="notif-btn">Notifications</button>
+    </div>
+  </header>
+
+  <!-- Tab nav -->
+  <nav class="tab-nav">
+    <button data-tab="habits" class="tab-btn active">🎯 Habitudes</button>
+    <button data-tab="time" class="tab-btn">
+      ⏱ Temps<span id="timer-pip" class="timer-pip" style="display:none"></span>
+    </button>
+    <button data-tab="okr" class="tab-btn">🏆 OKR</button>
+    <button data-tab="weight" class="tab-btn">⚖️ Poids</button>
+  </nav>
+
+  <!-- Tabs -->
+  <div id="habits-tab"  class="tab-content active"></div>
+  <div id="time-tab"    class="tab-content"></div>
+  <div id="okr-tab"     class="tab-content"></div>
+  <div id="weight-tab"  class="tab-content"></div>
+
+</div>
+
+<!-- Modal -->
+<div id="modal-overlay" class="modal-overlay hidden">
+  <div id="modal-box" class="modal-box">
+    <p id="modal-title" class="modal-title"></p>
+    <p id="modal-message" class="modal-msg"></p>
+    <input id="modal-input" type="text" class="modal-inp hidden" />
+    <div class="modal-actions">
+      <button id="modal-cancel" class="btn ghost">Annuler</button>
+      <button id="modal-confirm" class="btn">Confirmer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Weight tooltip -->
+<div id="wt-tip" class="wt-tip hidden"></div>
+
+<!-- Tweaks panel -->
+<div id="tweaks-panel">
+  <h3>Tweaks</h3>
+  <span style="font-size:12px;color:var(--text-2);display:block;margin-bottom:8px">Thème</span>
+  <div class="tw-opts">
+    <button class="tw-opt on" id="tw-obsidian" onclick="setTheme('obsidian')">Obsidian</button>
+    <button class="tw-opt"    id="tw-nebula"   onclick="setTheme('nebula')">Nebula</button>
+  </div>
+</div>
+
+<script>
+// ── TWEAKS ──
+function setTheme(t) {
+  document.body.classList.toggle('nebula', t === 'nebula');
+  document.getElementById('tw-obsidian').classList.toggle('on', t === 'obsidian');
+  document.getElementById('tw-nebula').classList.toggle('on', t === 'nebula');
+}
+window.addEventListener('message', e => {
+  if (e.data?.type === '__activate_edit_mode')   document.getElementById('tweaks-panel').style.display = 'block';
+  if (e.data?.type === '__deactivate_edit_mode') document.getElementById('tweaks-panel').style.display = 'none';
+});
+
+// ── MODAL ──
+function _openModal({ title, message, inputDefault, confirmText, confirmClass }) {
+  return new Promise(resolve => {
+    const overlay   = document.getElementById('modal-overlay');
+    const box       = document.getElementById('modal-box');
+    const titleEl   = document.getElementById('modal-title');
+    const msgEl     = document.getElementById('modal-message');
+    const inp       = document.getElementById('modal-input');
+    const cancelBtn = document.getElementById('modal-cancel');
+    const confirmBtn= document.getElementById('modal-confirm');
+
+    titleEl.textContent = title || '';
+    titleEl.style.display = title ? '' : 'none';
+    msgEl.textContent = message;
+    confirmBtn.textContent = confirmText || 'Confirmer';
+    confirmBtn.className = `btn ${confirmClass || ''}`;
+
+    const isPrompt = inputDefault !== undefined;
+    if (isPrompt) {
+      inp.value = inputDefault; inp.classList.remove('hidden');
+      setTimeout(() => { inp.focus(); inp.select(); }, 30);
+    } else {
+      inp.classList.add('hidden');
+      setTimeout(() => confirmBtn.focus(), 30);
+    }
+
+    overlay.classList.remove('hidden');
+    box.classList.remove('modal-animate');
+    void box.offsetWidth;
+    box.classList.add('modal-animate');
+
+    function close(result) {
+      overlay.classList.add('hidden');
+      confirmBtn.removeEventListener('click', onConfirm);
+      cancelBtn.removeEventListener('click', onCancel);
+      overlay.removeEventListener('mousedown', onOverlay);
+      document.removeEventListener('keydown', onKey);
+      resolve(result);
+    }
+    const onConfirm = () => close(isPrompt ? (inp.value.trim() || null) : true);
+    const onCancel  = () => close(isPrompt ? null : false);
+    const onOverlay = e => { if (e.target === overlay) close(isPrompt ? null : false); };
+    const onKey = e => {
+      if (e.key === 'Escape') { e.preventDefault(); close(isPrompt ? null : false); }
+      if (e.key === 'Enter' && !isPrompt) { e.preventDefault(); close(true); }
+    };
+    confirmBtn.addEventListener('click', onConfirm);
+    cancelBtn.addEventListener('click', onCancel);
+    overlay.addEventListener('mousedown', onOverlay);
+    document.addEventListener('keydown', onKey);
+  });
+}
+function showConfirm(message, { title, confirmText = 'Confirmer', danger = false } = {}) {
+  return _openModal({ title, message, confirmText, confirmClass: danger ? 'danger' : '' });
+}
+function showPrompt(message, defaultValue = '', { title } = {}) {
+  return _openModal({ title, message, inputDefault: defaultValue, confirmText: 'Enregistrer' });
+}
+
+// ── STATE ──
+const SK = 'trackers_v2';
+const SK_OLD = 'productivity_dashboard_v1';
+
+const DEFAULT_STATE = {
+  habits: [], projects: [], objectives: [],
+  weightEntries: [], weightGoal: null,
+  weightConfig: { startDate: null, endDate: null, startWeight: null, goalWeight: null },
+  bodyMeasurements: [],
+  reminderTime: '20:00', lastReminderDate: null,
+  timer: { projectId: null, startTime: null }
+};
+let state = JSON.parse(JSON.stringify(DEFAULT_STATE));
+let timerInterval = null;
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(SK) || localStorage.getItem(SK_OLD);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      state = { ...DEFAULT_STATE, ...parsed };
+      if (!state.weightConfig) state.weightConfig = { ...DEFAULT_STATE.weightConfig };
+      if (!state.bodyMeasurements) state.bodyMeasurements = [];
+      // Migrate old flat weightGoal into weightConfig
+      if (state.weightGoal !== null && state.weightConfig.goalWeight === null) {
+        state.weightConfig.goalWeight = state.weightGoal;
+      }
+    }
+  } catch(e) {}
+}
+function saveState() {
+  try { localStorage.setItem(SK, JSON.stringify(state)); } catch(e) {}
+}
+
+// ── UTILS ──
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+function dateStr(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function today() { return dateStr(new Date()); }
+function getWeekDates() {
+  const now = new Date(); const dow = now.getDay();
+  const diff = dow === 0 ? -6 : 1 - dow;
+  const mon = new Date(now); mon.setDate(now.getDate() + diff); mon.setHours(0,0,0,0);
+  return Array.from({length:7}, (_, i) => { const d = new Date(mon); d.setDate(mon.getDate()+i); return d; });
+}
+function fmtMins(m) {
+  m = Math.max(0, m);
+  const h = Math.floor(m/60), min = Math.floor(m%60);
+  return h > 0 ? `${h}h ${min}m` : `${min}m`;
+}
+function fmtElapsed(ts) {
+  const s = Math.floor((Date.now()-ts)/1000);
+  return [Math.floor(s/3600), Math.floor((s%3600)/60), s%60].map(v => String(v).padStart(2,'0')).join(':');
+}
+function esc(str) {
+  const d = document.createElement('div'); d.appendChild(document.createTextNode(str)); return d.innerHTML;
+}
+
+// ── HABITS ──
+function calcStreak(habit) {
+  const comp = habit.completions || {}; const now = new Date(); now.setHours(0,0,0,0);
+  let cur = new Date(now);
+  if (!comp[dateStr(cur)]) cur.setDate(cur.getDate()-1);
+  let streak = 0;
+  for (let i = 0; i < 400; i++) {
+    if (comp[dateStr(cur)]) { streak++; cur.setDate(cur.getDate()-1); } else break;
+  }
+  return streak;
+}
+function todayRate() {
+  if (!state.habits.length) return 0;
+  return Math.round(state.habits.filter(h => h.completions?.[today()]).length / state.habits.length * 100);
+}
+function weekRate() {
+  if (!state.habits.length) return 0;
+  const wk = getWeekDates(); const now = new Date(); now.setHours(0,0,0,0);
+  let total = 0, done = 0;
+  wk.forEach(d => { if (d <= now) { total += state.habits.length; const ds = dateStr(d); done += state.habits.filter(h => h.completions?.[ds]).length; } });
+  return total === 0 ? 0 : Math.round(done/total*100);
+}
+
+function buildWeekChart() {
+  if (!state.habits.length) return '';
+  const wk = getWeekDates(); const now = new Date(); now.setHours(0,0,0,0);
+  const todDs = today(); const dayLbls = ['L','M','M','J','V','S','D'];
+  const bars = wk.map((d, i) => {
+    const ds = dateStr(d); const future = d > now; const isToday = ds === todDs;
+    const pct = future ? 0 : Math.round(state.habits.filter(h => h.completions?.[ds]).length / state.habits.length * 100);
+    return { pct, future, isToday, lbl: dayLbls[i] };
+  });
+  return `
+    <div class="sc" style="margin-bottom:20px">
+      <div class="sc-label">Cette semaine — complétion par jour</div>
+      <div class="week-bars">
+        ${bars.map(b => `
+          <div class="week-bar-col">
+            <div class="week-bar-track">
+              <div class="week-bar-fill${b.future?' future':b.isToday?' today':''}" style="height:${b.pct}%"></div>
+            </div>
+            <div class="week-bar-lbl${b.isToday?' today':''}">${b.lbl}</div>
+          </div>`).join('')}
+      </div>
+    </div>`;
+}
+
+function renderHabits() {
+  const el = document.getElementById('habits-tab');
+  const wk = getWeekDates(); const now = new Date(); now.setHours(0,0,0,0);
+  const todDs = today(); const tr = todayRate(); const wr = weekRate();
+  const dayLbls = ['L','M','M','J','V','S','D'];
+
+  el.innerHTML = `
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-val">${state.habits.length}</div>
+        <div class="stat-lbl">Habitudes</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val${tr===100?' ok':''}">${tr}%</div>
+        <div class="stat-lbl">Aujourd'hui</div>
+        <div class="stat-bar"><div class="stat-bar-fill" style="width:${tr}%;background:var(--accent)"></div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val${wr>=80?' ok':''}">${wr}%</div>
+        <div class="stat-lbl">Cette semaine</div>
+        <div class="stat-bar"><div class="stat-bar-fill" style="width:${wr}%;background:var(--violet)"></div></div>
+      </div>
+    </div>
+
+    ${buildWeekChart()}
+
+    <div class="box">
+      <div class="box-head">
+        <span class="box-head-title">Habitude</span>
+        <div class="day-col-heads">
+          ${dayLbls.map((l,i) => `<div class="day-col-head${dateStr(wk[i])===todDs?' today':''}">${l}</div>`).join('')}
+        </div>
+        <div class="streak-col-head">Série</div>
+      </div>
+      ${state.habits.length === 0
+        ? `<div class="empty">Aucune habitude — ajoutez-en une ci-dessous.</div>`
+        : state.habits.map(h => {
+          const streak = calcStreak(h);
+          return `<div class="habit-row">
+            <div class="habit-name">
+              <span>${esc(h.name)}</span>
+              <button class="act-btn" onclick="renameHabit('${h.id}')">✏</button>
+              <button class="act-btn del" onclick="deleteHabit('${h.id}')">✕</button>
+            </div>
+            <div class="day-cells">
+              ${wk.map(d => {
+                const ds = dateStr(d); const done = !!(h.completions?.[ds]);
+                const future = d > now; const isT = ds === todDs;
+                return `<div onclick="${future?'':` toggleHabit('${h.id}','${ds}')`}"
+                  class="day-cell${done?' done':''}${isT?' today-ring':''}${future?' future':''}">
+                  ${done ? `<svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg>` : ''}
+                </div>`;
+              }).join('')}
+            </div>
+            <div class="streak-val">${streak > 0 ? streak : '—'}</div>
+          </div>`;
+        }).join('')}
+    </div>
+
+    <div class="add-row">
+      <input type="text" id="new-habit-input" placeholder="Nouvelle habitude…" class="inp" onkeydown="if(event.key==='Enter')addHabit()">
+      <button onclick="addHabit()" class="btn">Ajouter</button>
+    </div>`;
+}
+
+function toggleHabit(id, ds) {
+  const h = state.habits.find(x => x.id===id); if (!h) return;
+  if (!h.completions) h.completions = {};
+  if (h.completions[ds]) delete h.completions[ds]; else h.completions[ds] = true;
+  saveState(); renderHabits();
+}
+function addHabit() {
+  const inp = document.getElementById('new-habit-input'); const name = inp.value.trim(); if (!name) return;
+  state.habits.push({id:uid(), name, completions:{}}); inp.value = ''; saveState(); renderHabits();
+}
+async function deleteHabit(id) {
+  const ok = await showConfirm("Tout l'historique de cette habitude sera supprimé.", {title:'Supprimer l\'habitude ?', confirmText:'Supprimer', danger:true});
+  if (!ok) return; state.habits = state.habits.filter(h => h.id!==id); saveState(); renderHabits();
+}
+async function renameHabit(id) {
+  const h = state.habits.find(x => x.id===id); if (!h) return;
+  const n = await showPrompt('Nouveau nom', h.name, {title:'Renommer l\'habitude'}); if (n) { h.name=n; saveState(); renderHabits(); }
+}
+
+// ── TIME TRACKER ──
+const PROJ_COLORS = ['#6366f1','#8b5cf6','#10b981','#f59e0b','#ef4444','#06b6d4','#ec4899','#84cc16'];
+
+function projMinsToday(p) {
+  const ds = today(); const s = p.sessions?.find(x => x.date===ds); let m = s ? s.minutes : 0;
+  if (state.timer.projectId===p.id && state.timer.startTime) m += (Date.now()-state.timer.startTime)/60000;
+  return m;
+}
+function projMinsWeek(p) {
+  const wks = getWeekDates().map(d => dateStr(d));
+  let m = (p.sessions||[]).filter(s => wks.includes(s.date)).reduce((sum,s) => sum+s.minutes, 0);
+  if (state.timer.projectId===p.id && state.timer.startTime) m += (Date.now()-state.timer.startTime)/60000;
+  return m;
+}
+
+function renderTimeTracker() {
+  const el = document.getElementById('time-tab');
+  const totalWeek = state.projects.reduce((s,p) => s+projMinsWeek(p), 0);
+  const activeProj = state.timer.projectId ? state.projects.find(p => p.id===state.timer.projectId) : null;
+
+  el.innerHTML = `
+    ${activeProj ? `
+    <div class="live-banner">
+      <div class="live-dot"></div>
+      <div class="live-info">
+        <div class="live-name">${esc(activeProj.name)}</div>
+        <div class="live-clock" id="live-timer">${fmtElapsed(state.timer.startTime)}</div>
+      </div>
+      <button onclick="stopTimer()" class="btn danger">■ Stop</button>
+    </div>` : ''}
+
+    <div class="box" style="margin-bottom:20px">
+      <div class="box-head">
+        <span class="box-head-title">Projets</span>
+        <span class="box-head-meta">Semaine : <b>${fmtMins(totalWeek)}</b></span>
+      </div>
+      ${state.projects.length === 0
+        ? `<div class="empty">Aucun projet — ajoutez-en un ci-dessous.</div>`
+        : state.projects.map((p,i) => {
+          const active = state.timer.projectId===p.id;
+          return `<div class="proj-row">
+            <div class="proj-dot c${i%8}"></div>
+            <div class="proj-info">
+              <div class="proj-title">
+                ${esc(p.name)}
+                <button class="act-btn" onclick="renameProject('${p.id}')">✏</button>
+                <button class="act-btn del" onclick="deleteProject('${p.id}')">✕</button>
+              </div>
+              <div class="proj-meta">Aujourd'hui <b>${fmtMins(projMinsToday(p))}</b> · Semaine <b>${fmtMins(projMinsWeek(p))}</b></div>
+            </div>
+            <button onclick="${active?'stopTimer()':`startTimer('${p.id}')`}" class="proj-btn${active?' stop':''}">
+              ${active ? '■ Stop' : '▶ Start'}
+            </button>
+          </div>`;
+        }).join('')}
+    </div>
+
+    ${state.projects.length > 0 ? `
+    <div class="sc" style="margin-bottom:20px">
+      <div class="sc-label">Distribution — cette semaine</div>
+      ${state.projects.map((p,i) => {
+        const wkM = projMinsWeek(p); const pct = totalWeek > 0 ? Math.round(wkM/totalWeek*100) : 0;
+        return `<div class="dist-row">
+          <div class="dist-name">${esc(p.name)}</div>
+          <div class="dist-bar-bg"><div class="dist-bar-fill b${i%8}" style="width:${pct}%"></div></div>
+          <div class="dist-val">${fmtMins(wkM)} · ${pct}%</div>
+        </div>`;
+      }).join('')}
+    </div>` : ''}
+
+    <div class="add-row">
+      <input type="text" id="new-project-input" placeholder="Nouveau projet…" class="inp" onkeydown="if(event.key==='Enter')addProject()">
+      <button onclick="addProject()" class="btn">Ajouter</button>
+    </div>`;
+}
+
+function startTimer(id) {
+  if (state.timer.projectId) stopTimer(false);
+  state.timer = {projectId:id, startTime:Date.now()};
+  saveState(); startTimerTick(); renderTimeTracker(); updateTimerPip();
+}
+function stopTimer(rerender=true) {
+  if (!state.timer.projectId) return;
+  const p = state.projects.find(x => x.id===state.timer.projectId);
+  if (p && state.timer.startTime) {
+    const mins = (Date.now()-state.timer.startTime)/60000; const ds = today();
+    const sess = p.sessions||(p.sessions=[]);
+    const ex = sess.find(s => s.date===ds);
+    if (ex) ex.minutes += mins; else sess.push({date:ds, minutes:mins});
+  }
+  state.timer = {projectId:null, startTime:null};
+  clearInterval(timerInterval); timerInterval = null;
+  saveState(); if (rerender) renderTimeTracker(); updateTimerPip();
+}
+function startTimerTick() {
+  clearInterval(timerInterval);
+  timerInterval = setInterval(() => {
+    const el = document.getElementById('live-timer');
+    if (el && state.timer.startTime) el.textContent = fmtElapsed(state.timer.startTime);
+  }, 1000);
+}
+function addProject() {
+  const inp = document.getElementById('new-project-input'); const name = inp.value.trim(); if (!name) return;
+  state.projects.push({id:uid(), name, sessions:[]}); inp.value=''; saveState(); renderTimeTracker();
+}
+async function deleteProject(id) {
+  if (state.timer.projectId===id) stopTimer(false);
+  const ok = await showConfirm('Tout le temps enregistré pour ce projet sera supprimé.', {title:'Supprimer le projet ?', confirmText:'Supprimer', danger:true});
+  if (!ok) return; state.projects = state.projects.filter(p => p.id!==id); saveState(); renderTimeTracker();
+}
+async function renameProject(id) {
+  const p = state.projects.find(x => x.id===id); if (!p) return;
+  const n = await showPrompt('Nouveau nom', p.name, {title:'Renommer le projet'}); if (n) { p.name=n; saveState(); renderTimeTracker(); }
+}
+function updateTimerPip() {
+  const pip = document.getElementById('timer-pip'); if (!pip) return;
+  pip.style.display = state.timer.projectId ? 'inline-block' : 'none';
+}
+
+// ── OKR ──
+function calcProgress(obj) {
+  if (!obj.keyResults?.length) return 0;
+  return Math.round(obj.keyResults.filter(k => k.done).length / obj.keyResults.length * 100);
+}
+function progColor(pct) {
+  if (pct >= 75) return 'var(--green)';
+  if (pct >= 40) return 'var(--amber)';
+  return 'var(--accent)';
+}
+
+function renderOKR() {
+  const el = document.getElementById('okr-tab');
+  el.innerHTML = `
+    <div style="margin-bottom:14px">
+      ${state.objectives.length === 0
+        ? `<div class="empty" style="padding:80px 24px">Aucun objectif. Ajoutez-en un ci-dessous.</div>`
+        : state.objectives.map(obj => {
+          const pct = calcProgress(obj);
+          return `<div class="obj-card">
+            <div class="obj-title-row">
+              <span class="obj-title">${esc(obj.title)}</span>
+              <button class="obj-act" onclick="editObjective('${obj.id}')">✏</button>
+              <button class="obj-act del" onclick="deleteObjective('${obj.id}')">✕</button>
+            </div>
+            <div class="prog-wrap">
+              <div class="prog-bar"><div class="prog-fill" style="width:${pct}%;background:${progColor(pct)}"></div></div>
+              <div class="prog-pct" style="color:${progColor(pct)}">${pct}%</div>
+              <div class="prog-count">${obj.keyResults?.filter(k=>k.done).length||0}/${obj.keyResults?.length||0} KR</div>
+            </div>
+            <div class="kr-list">
+              ${(obj.keyResults||[]).length===0
+                ? `<div style="font-size:13px;color:var(--text-3);padding:8px 0">Aucun résultat clé</div>`
+                : (obj.keyResults||[]).map(kr => `
+                  <div class="kr-row">
+                    <input type="checkbox" class="kr-check" id="kr-${kr.id}" ${kr.done?'checked':''} onchange="toggleKR('${obj.id}','${kr.id}')">
+                    <label for="kr-${kr.id}" class="kr-text${kr.done?' done':''}">${esc(kr.text)}</label>
+                    <button class="act-btn del" onclick="deleteKR('${obj.id}','${kr.id}')">✕</button>
+                  </div>`).join('')}
+            </div>
+            <div class="kr-add">
+              <input type="text" id="kr-input-${obj.id}" placeholder="Ajouter un résultat clé…" class="inp-sm" onkeydown="if(event.key==='Enter')addKR('${obj.id}')">
+              <button onclick="addKR('${obj.id}')" class="btn-sm">+ KR</button>
+            </div>
+          </div>`;
+        }).join('')}
+    </div>
+    <div class="add-row">
+      <input type="text" id="new-obj-input" placeholder="Nouvel objectif…" class="inp" onkeydown="if(event.key==='Enter')addObjective()">
+      <button onclick="addObjective()" class="btn">Ajouter</button>
+    </div>`;
+}
+
+function addObjective() {
+  const inp = document.getElementById('new-obj-input'); const title = inp.value.trim(); if (!title) return;
+  state.objectives.push({id:uid(), title, keyResults:[]}); inp.value=''; saveState(); renderOKR();
+}
+async function deleteObjective(id) {
+  const ok = await showConfirm('Tous les résultats clés seront supprimés définitivement.', {title:"Supprimer l'objectif ?", confirmText:'Supprimer', danger:true});
+  if (!ok) return; state.objectives = state.objectives.filter(o => o.id!==id); saveState(); renderOKR();
+}
+async function editObjective(id) {
+  const obj = state.objectives.find(o => o.id===id); if (!obj) return;
+  const t = await showPrompt('Titre', obj.title, {title:"Modifier l'objectif"}); if (t) { obj.title=t; saveState(); renderOKR(); }
+}
+function addKR(objId) {
+  const inp = document.getElementById(`kr-input-${objId}`); const text = inp.value.trim(); if (!text) return;
+  const obj = state.objectives.find(o => o.id===objId); if (!obj) return;
+  if (!obj.keyResults) obj.keyResults = [];
+  obj.keyResults.push({id:uid(), text, done:false}); inp.value=''; saveState(); renderOKR();
+}
+function deleteKR(objId, krId) {
+  const obj = state.objectives.find(o => o.id===objId); if (!obj) return;
+  obj.keyResults = obj.keyResults.filter(k => k.id!==krId); saveState(); renderOKR();
+}
+function toggleKR(objId, krId) {
+  const obj = state.objectives.find(o => o.id===objId); if (!obj) return;
+  const kr = obj.keyResults.find(k => k.id===krId); if (!kr) return;
+  kr.done = !kr.done; saveState(); renderOKR();
+}
+
+// ── WEIGHT TRACKER ──
+const ENERGY_LABELS = { low: 'Faible', medium: 'Moyen', high: 'Élevé' };
+const MOOD_LABELS   = { low: 'Bas', ok: 'Ok', good: 'Bien', great: 'Super' };
+
+function energyBadge(v) {
+  if (!v) return '';
+  const cls = v === 'low' ? 'badge-e-low' : v === 'medium' ? 'badge-e-med' : 'badge-e-hi';
+  return `<span class="badge ${cls}">${ENERGY_LABELS[v]||v}</span>`;
+}
+function moodBadge(v) {
+  if (!v) return '';
+  return `<span class="badge badge-m-${v}">${MOOD_LABELS[v]||v}</span>`;
+}
+
+function getWeightStats() {
+  const sorted = [...state.weightEntries].sort((a,b) => a.date.localeCompare(b.date));
+  if (!sorted.length) return null;
+  const current    = sorted[sorted.length-1].weight;
+  const cfg        = state.weightConfig || {};
+  const goalWeight = cfg.goalWeight !== null && cfg.goalWeight !== undefined ? cfg.goalWeight : state.weightGoal;
+  const startWeight= cfg.startWeight || sorted[0].weight;
+
+  const recent = sorted.slice(-14);
+  let weeklyRate = null;
+  if (recent.length >= 2) {
+    const days = (new Date(recent[recent.length-1].date) - new Date(recent[0].date)) / 86400000;
+    if (days > 0) weeklyRate = (recent[recent.length-1].weight - recent[0].weight) / days * 7;
+  }
+
+  let progressPct = 0;
+  if (goalWeight !== null && goalWeight !== undefined) {
+    const totalChange = Math.abs(goalWeight - startWeight);
+    if (totalChange > 0) progressPct = Math.max(0, Math.min(100, Math.abs(current - startWeight) / totalChange * 100));
+  }
+
+  let weeksLeft = null, neededRate = null;
+  if (cfg.endDate) {
+    const now = new Date(); now.setHours(0,0,0,0);
+    const end = new Date(cfg.endDate + 'T00:00:00');
+    const daysLeft = Math.max(0, Math.round((end - now) / 86400000));
+    weeksLeft = Math.ceil(daysLeft / 7);
+    if (goalWeight !== null && goalWeight !== undefined && daysLeft > 0) {
+      neededRate = (current - goalWeight) / (daysLeft / 7);
+    }
+  }
+
+  return { current, startWeight, goalWeight, weeklyRate, progressPct, weeksLeft, neededRate, sorted };
+}
+
+function buildConseil(stats) {
+  if (!stats || stats.goalWeight === null || stats.goalWeight === undefined) return '';
+  if (stats.neededRate === null || stats.weeklyRate === null) return '';
+  const isLoss  = stats.goalWeight < stats.current;
+  const needed  = Math.abs(stats.neededRate);
+  const actual  = isLoss ? -stats.weeklyRate : stats.weeklyRate;
+  const diff    = actual - needed;
+  const dir     = isLoss ? 'à perdre' : 'à prendre';
+  let msg = '';
+  if (Math.abs(stats.current - stats.goalWeight) < 0.2) {
+    msg = 'Objectif atteint ! Maintenez votre rythme actuel.';
+  } else if (Math.abs(diff) < 0.05) {
+    msg = 'Vous êtes exactement dans les temps — continuez comme ça.';
+  } else if (diff > 0) {
+    msg = `Vous avancez plus vite que prévu (${actual.toFixed(2)} kg/sem. ${dir} vs ${needed.toFixed(2)} nécessaire). Excellent rythme.`;
+  } else {
+    msg = `Pour atteindre l'objectif à temps, il faut ${needed.toFixed(2)} kg/sem. ${dir} — actuellement ${Math.max(0,actual).toFixed(2)} kg/sem.`;
+  }
+  return `<div class="conseil-card">
+    <div class="conseil-label">Conseil</div>
+    <div class="conseil-text">"${msg}"</div>
+  </div>`;
+}
+
+function buildDualChart(sorted) {
+  if (sorted.length < 2) return '';
+  const pts     = sorted.slice(-60);
+  const cfg     = state.weightConfig || {};
+  const goal    = (cfg.goalWeight !== null && cfg.goalWeight !== undefined) ? cfg.goalWeight : state.weightGoal;
+  const weights = pts.map(e => e.weight);
+  const startW  = cfg.startWeight || weights[0];
+
+  // Y-axis: goal - margin at bottom → max weight + margin at top (full journey visible)
+  const topVal  = Math.max(...weights, startW) + 1.5;
+  const botVal  = goal !== null ? Math.min(goal - 1.5, Math.min(...weights) - 1) : Math.min(...weights) - 1.5;
+  const vRange  = topVal - botVal;
+
+  const W=800, H=240, PL=42, PR=24, PT=38, PB=20;
+  const cW = W-PL-PR, cH = H-PT-PB;
+  const yFn = w => PT + cH - ((w - botVal) / vRange) * cH;
+  const xFn = i => PL + (i / Math.max(pts.length-1, 1)) * cW;
+  const eCol = v => v==='high' ? 'oklch(0.72 0.17 162)' : v==='medium' ? 'oklch(0.78 0.17 78)' : v==='low' ? 'oklch(0.65 0.2 22)' : null;
+
+  const coords = pts.map((e,i) => ({ x: xFn(i), y: yFn(e.weight), e }));
+  const wPath  = coords.map((p,i) => `${i===0?'M':'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  const aPath  = `${wPath} L${coords[coords.length-1].x.toFixed(1)},${(H-PB).toFixed(1)} L${PL},${(H-PB).toFixed(1)} Z`;
+  const goalY  = goal !== null ? yFn(goal) : null;
+  const todDs  = today();
+
+  // How many points before we thin out labels
+  const step = pts.length > 20 ? 4 : pts.length > 10 ? 2 : 1;
+
+  // Y-axis grid lines (4 steps)
+  const yGridVals = Array.from({length:5}, (_,i) => botVal + (vRange/4)*i);
+
+  return `<div class="chart-wrap">
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;overflow:visible" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id="wg2" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"   stop-color="oklch(0.62 0.22 265)" stop-opacity=".13"/>
+          <stop offset="100%" stop-color="oklch(0.62 0.22 265)" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+
+      ${yGridVals.map(v => {
+        const gy = yFn(v);
+        return `<line x1="${PL}" y1="${gy.toFixed(1)}" x2="${W-PR}" y2="${gy.toFixed(1)}"
+          stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+        <text x="${PL-5}" y="${gy.toFixed(1)}" fill="oklch(0.38 0 0)"
+          font-size="10" font-family="JetBrains Mono,monospace" text-anchor="end" dominant-baseline="middle">${v.toFixed(1)}</text>`;
+      }).join('')}
+
+      ${goalY!==null ? `
+        <line x1="${PL}" y1="${goalY.toFixed(1)}" x2="${W-PR}" y2="${goalY.toFixed(1)}"
+          stroke="oklch(0.72 0.17 162)" stroke-width="1.2" stroke-dasharray="5 3" opacity=".65"/>
+        <text x="${W-PR+5}" y="${goalY.toFixed(1)}" fill="oklch(0.72 0.17 162)"
+          font-size="10" font-family="JetBrains Mono,monospace" dominant-baseline="middle">${goal} kg</text>` : ''}
+
+      <path d="${aPath}" fill="url(#wg2)"/>
+      <path d="${wPath}" fill="none" stroke="oklch(0.62 0.22 265)" stroke-width="1.8"
+        stroke-linejoin="round" stroke-linecap="round"/>
+
+      ${coords.map((p, i) => {
+        const isToday = p.e.date === todDs;
+        const ec      = eCol(p.e.energy);
+        const dotFill = ec || (isToday ? '#fafafa' : 'var(--surface)');
+        const dotStroke = ec ? 'none' : 'oklch(0.62 0.22 265)';
+        const r       = isToday ? 5.5 : 4;
+        const showLbl = (i % step === 0) || (i === coords.length-1);
+        const d = new Date(p.e.date+'T12:00:00');
+        const dateLbl = d.toLocaleDateString('fr-FR',{day:'numeric',month:'short'});
+        return `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${r}"
+          fill="${dotFill}" stroke="${dotStroke}" stroke-width="${isToday?2:1.5}"
+          style="cursor:pointer" onclick="showWtTip(event,'${p.e.id}')"/>
+        ${showLbl ? `
+          <text x="${p.x.toFixed(1)}" y="${(p.y-r-3).toFixed(1)}"
+            fill="rgba(255,255,255,0.7)" font-size="10" font-weight="500"
+            font-family="JetBrains Mono,monospace" text-anchor="middle" dominant-baseline="auto">${p.e.weight.toFixed(1)}</text>
+          <text x="${p.x.toFixed(1)}" y="${(p.y-r-14).toFixed(1)}"
+            fill="rgba(255,255,255,0.32)" font-size="9"
+            font-family="Outfit,sans-serif" text-anchor="middle" dominant-baseline="auto">${dateLbl}</text>` : ''}`;
+      }).join('')}
+    </svg>
+
+    <div style="display:flex;align-items:center;gap:18px;margin-top:8px">
+      <div style="display:flex;align-items:center;gap:6px">
+        <div style="width:18px;height:2px;background:oklch(0.62 0.22 265);border-radius:1px"></div>
+        <span style="font-size:11px;color:var(--text-3)">Poids</span>
+      </div>
+      ${goalY!==null?`<div style="display:flex;align-items:center;gap:6px">
+        <div style="width:18px;height:0;border-top:1.5px dashed oklch(0.72 0.17 162)"></div>
+        <span style="font-size:11px;color:var(--text-3)">Objectif</span>
+      </div>`:''}
+      <div style="display:flex;align-items:center;gap:5px">
+        <span style="width:8px;height:8px;border-radius:50%;background:oklch(0.72 0.17 162);display:inline-block"></span>
+        <span style="width:8px;height:8px;border-radius:50%;background:oklch(0.78 0.17 78);display:inline-block"></span>
+        <span style="width:8px;height:8px;border-radius:50%;background:oklch(0.65 0.2 22);display:inline-block"></span>
+        <span style="font-size:11px;color:var(--text-3)">Énergie (couleur des points)</span>
+      </div>
+    </div>
+  </div>`;
+}
+
+let _wtTipId = null;
+let _configOpen = null; // null = uninitialized; set on first renderWeight call
+function toggleConfig() {
+  _configOpen = !_configOpen;
+  const body   = document.getElementById('cfg-body');
+  const toggle = document.getElementById('cfg-toggle-icon');
+  if (body)   body.style.display = _configOpen ? '' : 'none';
+  if (toggle) toggle.textContent = _configOpen ? '▲' : '▼';
+}
+function showWtTip(event, id) {
+  event.stopPropagation();
+  const tip = document.getElementById('wt-tip');
+  if (!tip) return;
+  if (_wtTipId === id) { tip.classList.add('hidden'); _wtTipId = null; return; }
+  _wtTipId = id;
+  const entry = state.weightEntries.find(e => e.id === id);
+  if (!entry) return;
+  const d = new Date(entry.date + 'T12:00:00');
+  const dateLbl = d.toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' });
+  tip.innerHTML = `
+    <div class="wt-tip-date">${dateLbl}</div>
+    <div class="wt-tip-weight">${entry.weight.toFixed(1)} kg</div>
+    ${entry.energy || entry.mood ? `<div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px">${energyBadge(entry.energy)}${moodBadge(entry.mood)}</div>` : ''}
+    ${entry.comment ? `<div style="font-size:12px;color:var(--text-3);font-style:italic">"${esc(entry.comment)}"</div>` : ''}`;
+  const rect = event.target.getBoundingClientRect();
+  tip.classList.remove('hidden');
+  const tw = 200, th = 130;
+  let left = rect.right + 12, top = rect.top - 10;
+  if (left + tw > window.innerWidth - 16) left = rect.left - tw - 12;
+  if (top + th > window.innerHeight - 16) top = window.innerHeight - th - 16;
+  tip.style.left = left + 'px'; tip.style.top = top + 'px';
+  document.querySelectorAll('.wt-row').forEach(r => r.classList.remove('highlighted'));
+  const row = document.getElementById(`wt-row-${id}`);
+  if (row) { row.classList.add('highlighted'); row.scrollIntoView({ behavior:'smooth', block:'nearest' }); }
+}
+document.addEventListener('click', () => {
+  const tip = document.getElementById('wt-tip');
+  if (tip && !tip.classList.contains('hidden')) { tip.classList.add('hidden'); _wtTipId = null; }
+  document.querySelectorAll('.wt-row').forEach(r => r.classList.remove('highlighted'));
+});
+
+function renderWeight() {
+  const el = document.getElementById('weight-tab');
+  const stats   = getWeightStats();
+  const todDs   = today();
+  const todayEntry = state.weightEntries.find(e => e.date === todDs);
+  const sorted  = stats ? stats.sorted : [];
+  const cfg     = state.weightConfig || {};
+  if (_configOpen === null) _configOpen = !(cfg.goalWeight || cfg.endDate);
+
+  const currentVal  = stats ? stats.current.toFixed(1) : '—';
+  const progressPct = stats ? Math.round(stats.progressPct) : 0;
+  const weeksLeft   = stats ? stats.weeksLeft : null;
+  const weeklyRate  = stats ? stats.weeklyRate : null;
+  const neededRate  = stats ? stats.neededRate : null;
+
+  el.innerHTML = `
+    <div class="stat-grid four" style="grid-template-columns:repeat(4,1fr)">
+      <div class="stat-card">
+        <div class="stat-val">${currentVal}</div>
+        <div class="stat-lbl">Poids actuel · kg</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val${progressPct>=80?' ok':''}">${progressPct}%</div>
+        <div class="stat-lbl">Progression</div>
+        <div class="stat-bar"><div class="stat-bar-fill" style="width:${progressPct}%;background:var(--green)"></div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val${weeksLeft!==null&&weeksLeft<=2?' amber':''}">${weeksLeft!==null?weeksLeft:'—'}</div>
+        <div class="stat-lbl">Semaines restantes</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val" style="font-size:20px;${weeklyRate!==null&&weeklyRate<0?'color:var(--green)':weeklyRate!==null&&weeklyRate>0.1?'color:var(--red)':''}">
+          ${weeklyRate!==null?`${weeklyRate>=0?'+':''}${weeklyRate.toFixed(2)}`:'—'}
+        </div>
+        <div class="stat-lbl">Rythme · kg/sem</div>
+        ${neededRate!==null?`<div style="font-size:11px;color:var(--text-3);margin-top:6px">Besoin : ${(-neededRate).toFixed(2)} kg/sem</div>`:''}
+      </div>
+    </div>
+
+    ${buildConseil(stats)}
+
+    <!-- Entry form -->
+    <div class="sc" id="wt-entry-sc">
+      <div class="sc-label">Enregistrer</div>
+      <div class="entry-grid">
+        <div class="entry-field">
+          <label>Date</label>
+          <input type="date" id="wt-date-inp" value="${todayEntry?todayEntry.date:todDs}" class="inp" style="padding:9px 13px;font-size:13px">
+        </div>
+        <div class="entry-field">
+          <label>Poids (kg)</label>
+          <input type="number" id="wt-weight-inp" step="0.1" min="20" max="300"
+            value="${todayEntry?todayEntry.weight:''}" placeholder="0.0"
+            class="inp" style="padding:9px 13px;font-size:13px;width:100%"
+            onkeydown="if(event.key==='Enter')saveWeightEntry()">
+        </div>
+        <div class="entry-field">
+          <label>Énergie</label>
+          <select id="wt-energy-inp" class="sel">
+            <option value="">—</option>
+            <option value="low"   ${todayEntry?.energy==='low'   ?'selected':''}>Faible</option>
+            <option value="medium"${todayEntry?.energy==='medium'?'selected':''}>Moyen</option>
+            <option value="high"  ${todayEntry?.energy==='high'  ?'selected':''}>Élevé</option>
+          </select>
+        </div>
+        <div class="entry-field">
+          <label>Humeur</label>
+          <select id="wt-mood-inp" class="sel">
+            <option value="">—</option>
+            <option value="low"  ${todayEntry?.mood==='low'  ?'selected':''}>Bas</option>
+            <option value="ok"   ${todayEntry?.mood==='ok'   ?'selected':''}>Ok</option>
+            <option value="good" ${todayEntry?.mood==='good' ?'selected':''}>Bien</option>
+            <option value="great"${todayEntry?.mood==='great'?'selected':''}>Super</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:10px">
+        <input type="text" id="wt-comment-inp" placeholder="Commentaire libre (repas, activité, notes…)"
+          value="${todayEntry?.comment?esc(todayEntry.comment):''}"
+          class="inp" style="padding:9px 13px;font-size:13px;flex:1">
+        <button onclick="saveWeightEntry()" class="btn">Enregistrer</button>
+      </div>
+    </div>
+
+    <!-- Config (collapsible) -->
+    <div class="sc" style="margin-bottom:20px">
+      <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="toggleConfig()">
+        <div class="sc-label" style="margin-bottom:0">Configuration</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          ${!_configOpen && (cfg.goalWeight !== null && cfg.goalWeight !== undefined || cfg.endDate) ? `
+            <span style="font-size:12px;color:var(--text-2)">
+              ${cfg.goalWeight!==null&&cfg.goalWeight!==undefined?`→ ${cfg.goalWeight} kg`:''}${cfg.endDate?' · '+new Date(cfg.endDate+'T00:00:00').toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'}):''}
+            </span>` : ''}
+          <span id="cfg-toggle-icon" style="font-size:10px;color:var(--text-3)">${_configOpen?'▲':'▼'}</span>
+        </div>
+      </div>
+      <div id="cfg-body" style="${_configOpen?'margin-top:20px':'display:none'}">
+        <div class="config-grid">
+          <div class="config-field">
+            <label>Date de début</label>
+            <input type="date" id="cfg-start-date" value="${cfg.startDate||''}" class="inp" style="padding:9px 13px;font-size:13px;width:100%">
+          </div>
+          <div class="config-field">
+            <label>Date de fin (objectif)</label>
+            <input type="date" id="cfg-end-date" value="${cfg.endDate||''}" class="inp" style="padding:9px 13px;font-size:13px;width:100%">
+          </div>
+          <div class="config-field">
+            <label>Poids de départ (kg)</label>
+            <input type="number" id="cfg-start-weight" step="0.1" min="20" max="300"
+              value="${cfg.startWeight||''}" placeholder="0.0"
+              class="inp" style="padding:9px 13px;font-size:13px;width:100%">
+          </div>
+          <div class="config-field">
+            <label>Poids objectif (kg)</label>
+            <input type="number" id="cfg-goal-weight" step="0.1" min="20" max="300"
+              value="${cfg.goalWeight!==null&&cfg.goalWeight!==undefined?cfg.goalWeight:state.weightGoal||''}" placeholder="0.0"
+              class="inp" style="padding:9px 13px;font-size:13px;width:100%">
+          </div>
+        </div>
+        <div style="margin-top:12px;text-align:right">
+          <button onclick="saveWeightConfig()" class="btn ghost sm">Enregistrer la config</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chart -->
+    ${sorted.length>=2 ? `
+    <div class="sc" style="margin-bottom:20px">
+      <div class="sc-label">Évolution</div>
+      ${buildDualChart(sorted)}
+    </div>` : sorted.length===1 ? `
+    <div class="sc" style="margin-bottom:20px">
+      <p style="font-size:13px;color:var(--text-3);text-align:center;padding:20px 0">Ajoutez une deuxième mesure pour voir le graphique.</p>
+    </div>` : ''}
+
+    <!-- Journal -->
+    ${sorted.length>0 ? `
+    <div class="box" style="margin-bottom:20px">
+      <div class="box-head">
+        <span class="box-head-title">Journal</span>
+        <span class="box-head-meta">${sorted.length} entrée${sorted.length>1?'s':''}</span>
+      </div>
+      ${[...sorted].reverse().map(e => {
+        const idx = sorted.findIndex(x => x.id===e.id);
+        const prev = idx>0?sorted[idx-1]:null;
+        const delta = prev?e.weight-prev.weight:null;
+        const d = new Date(e.date+'T12:00:00');
+        const lbl = e.date===todDs
+          ? `<span style="color:var(--accent)">Aujourd'hui</span>`
+          : d.toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'});
+        const dCls = delta===null?'':delta<0?'neg':delta>0?'pos':'';
+        return `<div class="wt-row" id="wt-row-${e.id}" onclick="prefillEntry('${e.id}')">
+          <span class="wt-date">${lbl}</span>
+          <span class="wt-kg">${e.weight.toFixed(1)} kg</span>
+          <span class="wt-delta${dCls?' '+dCls:''}">${delta===null?'—':(delta>=0?'+':'')+delta.toFixed(1)}</span>
+          ${energyBadge(e.energy)}${moodBadge(e.mood)}
+          <span class="wt-comment">${e.comment?esc(e.comment):''}</span>
+          <button class="act-btn del" onclick="event.stopPropagation();deleteWeightEntry('${e.id}')">✕</button>
+        </div>`;
+      }).join('')}
+    </div>` : `<div class="empty">Aucune mesure enregistrée.<br>Commencez par entrer votre poids ci-dessus.</div>`}
+
+    <!-- Mensurations -->
+    <div class="sc">
+      <div class="sc-label">Mensurations</div>
+      <div class="meas-grid" style="margin-bottom:12px">
+        <div class="entry-field">
+          <label>Date</label>
+          <input type="date" id="meas-date" value="${todDs}" class="inp" style="padding:9px 13px;font-size:13px">
+        </div>
+        ${['chest','waist','hips','biceps','thighs'].map(f=>`
+        <div class="entry-field">
+          <label>${{chest:'Poitrine',waist:'Taille',hips:'Hanches',biceps:'Biceps',thighs:'Cuisses'}[f]}</label>
+          <input type="number" id="meas-${f}" step="0.1" min="0" max="300" placeholder="cm"
+            class="inp" style="padding:9px 13px;font-size:13px">
+        </div>`).join('')}
+      </div>
+      <div style="text-align:right;margin-bottom:${(state.bodyMeasurements||[]).length?'20px':'0'}">
+        <button onclick="saveBodyMeasurement()" class="btn ghost sm">Enregistrer</button>
+      </div>
+      ${(state.bodyMeasurements||[]).length>0?`
+      <div>
+        ${[...state.bodyMeasurements].sort((a,b)=>b.date.localeCompare(a.date)).map(m=>{
+          const d = new Date(m.date+'T12:00:00');
+          const lbl = d.toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'});
+          const chips = ['chest','waist','hips','biceps','thighs']
+            .filter(f=>m[f])
+            .map(f=>`<span class="meas-chip">${{chest:'Poi.',waist:'Tai.',hips:'Han.',biceps:'Bic.',thighs:'Cui.'}[f]} <b>${m[f]}</b></span>`)
+            .join('');
+          return `<div class="meas-row">
+            <span class="meas-date">${lbl}</span>${chips}
+            <button class="act-btn del" style="opacity:0;margin-left:auto" onmouseenter="this.style.opacity=1" onmouseleave="this.style.opacity=0" onclick="deleteMeasurement('${m.id}')">✕</button>
+          </div>`;
+        }).join('')}
+      </div>` : ''}
+    </div>`;
+}
+
+function saveWeightEntry() {
+  const date    = document.getElementById('wt-date-inp').value;
+  const weight  = parseFloat(document.getElementById('wt-weight-inp').value);
+  if (!date || isNaN(weight) || weight<20 || weight>300) return;
+  const energy  = document.getElementById('wt-energy-inp').value || null;
+  const mood    = document.getElementById('wt-mood-inp').value || null;
+  const comment = document.getElementById('wt-comment-inp').value.trim();
+  const ex = state.weightEntries.find(e => e.date===date);
+  if (ex) { ex.weight=weight; ex.energy=energy; ex.mood=mood; ex.comment=comment; }
+  else state.weightEntries.push({ id:uid(), date, weight, energy, mood, comment });
+  saveState(); renderWeight();
+}
+
+function saveWeightConfig() {
+  const startDate   = document.getElementById('cfg-start-date').value || null;
+  const endDate     = document.getElementById('cfg-end-date').value || null;
+  const startWeight = parseFloat(document.getElementById('cfg-start-weight').value);
+  const goalWeight  = parseFloat(document.getElementById('cfg-goal-weight').value);
+  if (!state.weightConfig) state.weightConfig = {};
+  state.weightConfig.startDate   = startDate;
+  state.weightConfig.endDate     = endDate;
+  state.weightConfig.startWeight = isNaN(startWeight) ? null : startWeight;
+  state.weightConfig.goalWeight  = isNaN(goalWeight)  ? null : goalWeight;
+  saveState(); renderWeight();
+}
+
+function prefillEntry(id) {
+  const entry = state.weightEntries.find(e => e.id===id); if (!entry) return;
+  document.getElementById('wt-date-inp').value    = entry.date;
+  document.getElementById('wt-weight-inp').value  = entry.weight;
+  document.getElementById('wt-energy-inp').value  = entry.energy||'';
+  document.getElementById('wt-mood-inp').value    = entry.mood||'';
+  document.getElementById('wt-comment-inp').value = entry.comment||'';
+  const sc = document.getElementById('wt-entry-sc');
+  if (sc) sc.scrollIntoView({ behavior:'smooth', block:'start' });
+}
+
+async function deleteWeightEntry(id) {
+  const ok = await showConfirm('Cette entrée sera supprimée définitivement.', {title:'Supprimer ?', confirmText:'Supprimer', danger:true});
+  if (!ok) return;
+  state.weightEntries = state.weightEntries.filter(e => e.id!==id);
+  saveState(); renderWeight();
+}
+
+function saveBodyMeasurement() {
+  const date = document.getElementById('meas-date').value; if (!date) return;
+  const fields = ['chest','waist','hips','biceps','thighs'];
+  const data = { id:uid(), date }; let hasData = false;
+  fields.forEach(f => {
+    const v = parseFloat(document.getElementById(`meas-${f}`).value);
+    if (!isNaN(v) && v>0) { data[f]=v; hasData=true; }
+  });
+  if (!hasData) return;
+  if (!state.bodyMeasurements) state.bodyMeasurements = [];
+  const ex = state.bodyMeasurements.find(m => m.date===date);
+  if (ex) { fields.forEach(f => { if (data[f]) ex[f]=data[f]; }); }
+  else state.bodyMeasurements.push(data);
+  saveState(); renderWeight();
+}
+
+async function deleteMeasurement(id) {
+  const ok = await showConfirm('Cette mensuration sera supprimée.', {title:'Supprimer ?', confirmText:'Supprimer', danger:true});
+  if (!ok) return;
+  state.bodyMeasurements = (state.bodyMeasurements||[]).filter(m => m.id!==id);
+  saveState(); renderWeight();
+}
+
+// ── NOTIFICATIONS ──
+function requestNotifPermission() {
+  if (!('Notification' in window)) return;
+  Notification.requestPermission().then(() => updateNotifBtn());
+}
+function updateNotifBtn() {
+  const btn = document.getElementById('notif-btn'); if (!btn) return;
+  if (!('Notification' in window)) { btn.textContent='Non disponible'; btn.disabled=true; return; }
+  if (Notification.permission==='granted') { btn.textContent='🔔 Activées'; btn.style.color='var(--green)'; btn.style.borderColor='oklch(0.72 0.17 162 / 0.3)'; }
+  else if (Notification.permission==='denied') { btn.textContent='🔕 Bloquées'; btn.disabled=true; }
+}
+function checkReminder() {
+  if (!('Notification' in window) || Notification.permission!=='granted') return;
+  const now = new Date();
+  const t = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  const td = today();
+  if (t===state.reminderTime && state.lastReminderDate!==td) {
+    new Notification('Trackers', {body:"C'est l'heure de mettre à jour vos habitudes 🔥"});
+    state.lastReminderDate=td; saveState();
+  }
+}
+
+// ── TABS ──
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab===name));
+  document.querySelectorAll('.tab-content').forEach(e => e.classList.remove('active'));
+  document.getElementById(`${name}-tab`).classList.add('active');
+  if      (name==='habits') renderHabits();
+  else if (name==='time')   renderTimeTracker();
+  else if (name==='okr')    renderOKR();
+  else if (name==='weight') renderWeight();
+}
+
+// ── INIT ──
+function init() {
+  loadState();
+
+  document.getElementById('date-display').textContent = new Date().toLocaleDateString('fr-FR', {
+    weekday:'long', year:'numeric', month:'long', day:'numeric'
+  });
+
+  const rtInp = document.getElementById('reminder-time');
+  rtInp.value = state.reminderTime;
+  rtInp.addEventListener('change', e => { state.reminderTime=e.target.value; saveState(); });
+
+  document.getElementById('notif-btn').addEventListener('click', requestNotifPermission);
+  updateNotifBtn();
+
+  document.querySelectorAll('.tab-btn').forEach(btn => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
+
+  renderHabits();
+  renderTimeTracker();
+  renderOKR();
+  renderWeight();
+
+  if (state.timer.projectId && state.timer.startTime) { startTimerTick(); updateTimerPip(); }
+
+  setInterval(checkReminder, 60000);
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
