@@ -6,6 +6,7 @@
   <title>Trackers</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     /* ── TOKENS ── */
     :root {
@@ -560,6 +561,12 @@ function showPrompt(message, defaultValue = '', { title } = {}) {
   return _openModal({ title, message, inputDefault: defaultValue, confirmText: 'Enregistrer' });
 }
 
+// ── SUPABASE ──
+const SUPA_URL = 'https://odbuadengjggtqpzrpuh.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9kYnVhZGVuZ2pnZ3RxcHpycHVoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyOTY4ODEsImV4cCI6MjA4OTg3Mjg4MX0.Jeg7UwV767h-Vu7MNQNJogb6VNzSsm35u12o5wMY6r4';
+const db = window.supabase.createClient(SUPA_URL, SUPA_KEY);
+const USER_ID = 'default'; // remplacer par l'ID auth plus tard
+
 // ── STATE ──
 const SK = 'trackers_v2';
 const SK_OLD = 'productivity_dashboard_v1';
@@ -575,23 +582,46 @@ const DEFAULT_STATE = {
 let state = JSON.parse(JSON.stringify(DEFAULT_STATE));
 let timerInterval = null;
 
-function loadState() {
+function _applyParsed(parsed) {
+  state = { ...DEFAULT_STATE, ...parsed };
+  if (!state.weightConfig) state.weightConfig = { ...DEFAULT_STATE.weightConfig };
+  if (!state.bodyMeasurements) state.bodyMeasurements = [];
+  if (state.weightGoal !== null && state.weightConfig.goalWeight === null) {
+    state.weightConfig.goalWeight = state.weightGoal;
+  }
+}
+
+async function loadState() {
+  // Try Supabase first
+  try {
+    const { data } = await db
+      .from('trackers_state')
+      .select('data')
+      .eq('user_id', USER_ID)
+      .maybeSingle();
+    if (data?.data) { _applyParsed(data.data); return; }
+  } catch(e) {}
+  // Fallback: localStorage
   try {
     const raw = localStorage.getItem(SK) || localStorage.getItem(SK_OLD);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      state = { ...DEFAULT_STATE, ...parsed };
-      if (!state.weightConfig) state.weightConfig = { ...DEFAULT_STATE.weightConfig };
-      if (!state.bodyMeasurements) state.bodyMeasurements = [];
-      // Migrate old flat weightGoal into weightConfig
-      if (state.weightGoal !== null && state.weightConfig.goalWeight === null) {
-        state.weightConfig.goalWeight = state.weightGoal;
-      }
-    }
+    if (raw) _applyParsed(JSON.parse(raw));
   } catch(e) {}
 }
+
+let _saveTimer = null;
 function saveState() {
+  // Backup local immédiat
   try { localStorage.setItem(SK, JSON.stringify(state)); } catch(e) {}
+  // Sync Supabase debouncé 800ms
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(async () => {
+    try {
+      await db.from('trackers_state').upsert(
+        { user_id: USER_ID, data: state, updated_at: new Date().toISOString() },
+        { onConflict: 'user_id' }
+      );
+    } catch(e) {}
+  }, 800);
 }
 
 // ── UTILS ──
@@ -1462,8 +1492,8 @@ function switchTab(name) {
 }
 
 // ── INIT ──
-function init() {
-  loadState();
+async function init() {
+  await loadState();
 
   document.getElementById('date-display').textContent = new Date().toLocaleDateString('fr-FR', {
     weekday:'long', year:'numeric', month:'long', day:'numeric'
