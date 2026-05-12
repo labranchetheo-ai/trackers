@@ -374,6 +374,41 @@
       .stat-grid.four { grid-template-columns: repeat(2,1fr); }
     }
 
+    /* ── WEEK HISTORY ── */
+    .week-hist-row { display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--border); }
+    .week-hist-row:last-child { border-bottom:none; }
+    .week-hist-row.current .week-hist-label { color:var(--accent); font-weight:500; }
+    .week-hist-label { font-size:13px; color:var(--text-2); min-width:178px; flex-shrink:0; }
+    .week-hist-bar-bg { flex:1; height:3px; background:var(--surface-2); border-radius:3px; overflow:hidden; }
+    .week-hist-bar-fill { height:100%; border-radius:3px; transition:width .7s cubic-bezier(0.34,1.2,0.64,1); }
+    .week-hist-count { font-family:var(--mono); font-size:11px; color:var(--text-3); min-width:44px; text-align:right; flex-shrink:0; }
+    .week-hist-pct { font-family:var(--mono); font-size:13px; font-weight:500; min-width:38px; text-align:right; flex-shrink:0; }
+
+    /* ── EXPAND BTN ── */
+    .expand-btn {
+      display:block; width:100%; padding:11px; text-align:center; background:none; border:none;
+      cursor:pointer; font-size:13px; font-family:'Outfit',sans-serif; color:var(--text-3);
+      transition:color .15s;
+    }
+    .expand-btn:hover { color:var(--text-2); }
+
+    /* ── HABITS COLLAPSIBLE ── */
+    .habits-extra { display:grid; grid-template-rows:0fr; transition:grid-template-rows .28s cubic-bezier(0.4,0,0.2,1); }
+    .habits-extra.open { grid-template-rows:1fr; }
+    .habits-extra > div { overflow:hidden; }
+
+    /* ── OKR CHEVRON + COLLAPSIBLE ── */
+    .obj-chevron {
+      font-size:11px; color:var(--text-3); cursor:pointer; background:none; border:none;
+      font-family:inherit; padding:3px 6px; line-height:1; flex-shrink:0; margin-right:2px;
+      transition:transform .22s cubic-bezier(0.4,0,0.2,1), color .15s;
+    }
+    .obj-chevron:hover { color:var(--text-2); }
+    .obj-chevron.open { transform:rotate(90deg); color:var(--text-2); }
+    .kr-body { display:grid; grid-template-rows:0fr; transition:grid-template-rows .28s cubic-bezier(0.4,0,0.2,1); }
+    .kr-body.open { grid-template-rows:1fr; }
+    .kr-body > div { overflow:hidden; }
+
     /* ── LOGIN ── */
     .login-screen {
       position: fixed; inset: 0; z-index: 500; background: var(--bg);
@@ -617,6 +652,9 @@ const DEFAULT_STATE = {
 };
 let state = JSON.parse(JSON.stringify(DEFAULT_STATE));
 let timerInterval = null;
+let _habitsExpanded = false;
+let _histShowAll    = false;
+let _objExpanded    = {};
 
 function _applyParsed(parsed) {
   state = { ...DEFAULT_STATE, ...parsed };
@@ -684,6 +722,90 @@ function esc(str) {
 }
 
 // ── HABITS ──
+function getISOWeek(d) {
+  const dt = new Date(d); dt.setHours(0,0,0,0);
+  dt.setDate(dt.getDate() + 3 - (dt.getDay()+6)%7);
+  const w1 = new Date(dt.getFullYear(),0,4);
+  return 1 + Math.round(((dt-w1)/86400000 - 3 + (w1.getDay()+6)%7)/7);
+}
+
+function buildWeekHistory(maxWeeks) {
+  if (!state.habits.length) return [];
+  const now = new Date(); now.setHours(0,0,0,0);
+  const result = [];
+  for (let w = 0; w < maxWeeks; w++) {
+    const dow = now.getDay();
+    const mon = new Date(now);
+    mon.setDate(now.getDate() + (dow===0?-6:1-dow) - w*7);
+    mon.setHours(0,0,0,0);
+    const sun = new Date(mon); sun.setDate(mon.getDate()+6);
+    let total = 0, done = 0;
+    for (let i=0; i<7; i++) {
+      const d = new Date(mon); d.setDate(mon.getDate()+i);
+      if (d <= now) {
+        total += state.habits.length;
+        const ds = dateStr(d);
+        done += state.habits.filter(h => h.completions?.[ds]).length;
+      }
+    }
+    if (total === 0 && w > 0) break;
+    const wn = getISOWeek(mon);
+    const ml = mon.toLocaleDateString('fr-FR',{day:'numeric',month:'short'});
+    const sl = sun.toLocaleDateString('fr-FR',{day:'numeric',month:'short'});
+    result.push({ label:`S${wn} · ${ml} – ${sl}`, total, done,
+      pct: total===0?0:Math.round(done/total*100), isCurrent:w===0 });
+  }
+  return result;
+}
+
+function buildWeekHistoryBlock() {
+  if (!state.habits.length) return '';
+  const weeks = buildWeekHistory(_histShowAll ? 52 : 8);
+  if (weeks.length <= 1) return '';
+  const allLen = buildWeekHistory(52).length;
+  const hasMore = !_histShowAll && allLen > 8;
+  return `
+    <div class="sc" style="margin-bottom:20px">
+      <div class="sc-label">Historique hebdomadaire</div>
+      ${weeks.map(w => {
+        const col = w.pct>=80?'var(--green)':w.pct>=50?'var(--accent)':'var(--violet)';
+        return `<div class="week-hist-row${w.isCurrent?' current':''}">
+          <span class="week-hist-label">${w.label}</span>
+          <div class="week-hist-bar-bg"><div class="week-hist-bar-fill" style="width:${w.pct}%;background:${col}"></div></div>
+          <span class="week-hist-count">${w.done}/${w.total}</span>
+          <span class="week-hist-pct" style="color:${col}">${w.pct}%</span>
+        </div>`;
+      }).join('')}
+      ${hasMore
+        ? `<button onclick="toggleHistAll()" class="expand-btn">Voir les ${allLen-8} semaines précédentes ↓</button>`
+        : _histShowAll && allLen>8
+          ? `<button onclick="toggleHistAll()" class="expand-btn">Replier ↑</button>`
+          : ''}
+    </div>`;
+}
+
+function buildHabitRow(h, wk, now, todDs) {
+  const streak = calcStreak(h);
+  return `<div class="habit-row">
+    <div class="habit-name">
+      <span>${esc(h.name)}</span>
+      <button class="act-btn" onclick="renameHabit('${h.id}')">✏</button>
+      <button class="act-btn del" onclick="deleteHabit('${h.id}')">✕</button>
+    </div>
+    <div class="day-cells">
+      ${wk.map(d => {
+        const ds = dateStr(d); const done = !!(h.completions?.[ds]);
+        const future = d > now; const isT = ds === todDs;
+        return `<div onclick="${future?'':` toggleHabit('${h.id}','${ds}')`}"
+          class="day-cell${done?' done':''}${isT?' today-ring':''}${future?' future':''}">
+          ${done?`<svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg>`:''}
+        </div>`;
+      }).join('')}
+    </div>
+    <div class="streak-val">${streak > 0 ? streak : '—'}</div>
+  </div>`;
+}
+
 function calcStreak(habit) {
   const comp = habit.completions || {}; const now = new Date(); now.setHours(0,0,0,0);
   let cur = new Date(now);
@@ -735,6 +857,7 @@ function renderHabits() {
   const wk = getWeekDates(); const now = new Date(); now.setHours(0,0,0,0);
   const todDs = today(); const tr = todayRate(); const wr = weekRate();
   const dayLbls = ['L','M','M','J','V','S','D'];
+  const hidden = Math.max(0, state.habits.length - 2);
 
   el.innerHTML = `
     <div class="stat-grid">
@@ -755,6 +878,7 @@ function renderHabits() {
     </div>
 
     ${buildWeekChart()}
+    ${buildWeekHistoryBlock()}
 
     <div class="box">
       <div class="box-head">
@@ -766,33 +890,37 @@ function renderHabits() {
       </div>
       ${state.habits.length === 0
         ? `<div class="empty">Aucune habitude — ajoutez-en une ci-dessous.</div>`
-        : state.habits.map(h => {
-          const streak = calcStreak(h);
-          return `<div class="habit-row">
-            <div class="habit-name">
-              <span>${esc(h.name)}</span>
-              <button class="act-btn" onclick="renameHabit('${h.id}')">✏</button>
-              <button class="act-btn del" onclick="deleteHabit('${h.id}')">✕</button>
-            </div>
-            <div class="day-cells">
-              ${wk.map(d => {
-                const ds = dateStr(d); const done = !!(h.completions?.[ds]);
-                const future = d > now; const isT = ds === todDs;
-                return `<div onclick="${future?'':` toggleHabit('${h.id}','${ds}')`}"
-                  class="day-cell${done?' done':''}${isT?' today-ring':''}${future?' future':''}">
-                  ${done ? `<svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg>` : ''}
-                </div>`;
-              }).join('')}
-            </div>
-            <div class="streak-val">${streak > 0 ? streak : '—'}</div>
-          </div>`;
-        }).join('')}
+        : `${state.habits.slice(0,2).map(h => buildHabitRow(h, wk, now, todDs)).join('')}
+           ${hidden > 0 ? `
+             <div class="habits-extra${_habitsExpanded?' open':''}">
+               <div>${state.habits.slice(2).map(h => buildHabitRow(h, wk, now, todDs)).join('')}</div>
+             </div>
+             <div style="border-top:1px solid var(--border)">
+               <button onclick="toggleHabitsExpand()" id="habits-expand-btn" class="expand-btn">
+                 ${_habitsExpanded ? 'Replier ↑' : `Voir les ${hidden} autre${hidden>1?'s':''} habitude${hidden>1?'s':''} ↓`}
+               </button>
+             </div>` : ''}`}
     </div>
 
     <div class="add-row">
       <input type="text" id="new-habit-input" placeholder="Nouvelle habitude…" class="inp" onkeydown="if(event.key==='Enter')addHabit()">
       <button onclick="addHabit()" class="btn">Ajouter</button>
     </div>`;
+}
+
+function toggleHabitsExpand() {
+  _habitsExpanded = !_habitsExpanded;
+  const extra = document.querySelector('.habits-extra');
+  const btn   = document.getElementById('habits-expand-btn');
+  if (extra) extra.classList.toggle('open', _habitsExpanded);
+  if (btn) {
+    const h = Math.max(0, state.habits.length - 2);
+    btn.textContent = _habitsExpanded ? 'Replier ↑' : `Voir les ${h} autre${h>1?'s':''} habitude${h>1?'s':''} ↓`;
+  }
+}
+function toggleHistAll() {
+  _histShowAll = !_histShowAll;
+  renderHabits();
 }
 
 function toggleHabit(id, ds) {
@@ -951,31 +1079,39 @@ function renderOKR() {
       ${state.objectives.length === 0
         ? `<div class="empty" style="padding:80px 24px">Aucun objectif. Ajoutez-en un ci-dessous.</div>`
         : state.objectives.map(obj => {
-          const pct = calcProgress(obj);
+          const pct  = calcProgress(obj);
+          const open = !!_objExpanded[obj.id];
+          const doneKR = obj.keyResults?.filter(k=>k.done).length||0;
+          const totalKR = obj.keyResults?.length||0;
           return `<div class="obj-card">
-            <div class="obj-title-row">
+            <div class="obj-title-row" onclick="toggleObjExpand('${obj.id}')" style="cursor:pointer">
+              <button id="kr-chevron-${obj.id}" class="obj-chevron${open?' open':''}" onclick="event.stopPropagation();toggleObjExpand('${obj.id}')">▸</button>
               <span class="obj-title">${esc(obj.title)}</span>
-              <button class="obj-act" onclick="editObjective('${obj.id}')">✏</button>
-              <button class="obj-act del" onclick="deleteObjective('${obj.id}')">✕</button>
+              <button class="obj-act" onclick="event.stopPropagation();editObjective('${obj.id}')">✏</button>
+              <button class="obj-act del" onclick="event.stopPropagation();deleteObjective('${obj.id}')">✕</button>
             </div>
-            <div class="prog-wrap">
+            <div class="prog-wrap" style="pointer-events:none;margin-top:12px">
               <div class="prog-bar"><div class="prog-fill" style="width:${pct}%;background:${progColor(pct)}"></div></div>
               <div class="prog-pct" style="color:${progColor(pct)}">${pct}%</div>
-              <div class="prog-count">${obj.keyResults?.filter(k=>k.done).length||0}/${obj.keyResults?.length||0} KR</div>
+              <div class="prog-count">${doneKR}/${totalKR} KR</div>
             </div>
-            <div class="kr-list">
-              ${(obj.keyResults||[]).length===0
-                ? `<div style="font-size:13px;color:var(--text-3);padding:8px 0">Aucun résultat clé</div>`
-                : (obj.keyResults||[]).map(kr => `
-                  <div class="kr-row">
-                    <input type="checkbox" class="kr-check" id="kr-${kr.id}" ${kr.done?'checked':''} onchange="toggleKR('${obj.id}','${kr.id}')">
-                    <label for="kr-${kr.id}" class="kr-text${kr.done?' done':''}">${esc(kr.text)}</label>
-                    <button class="act-btn del" onclick="deleteKR('${obj.id}','${kr.id}')">✕</button>
-                  </div>`).join('')}
-            </div>
-            <div class="kr-add">
-              <input type="text" id="kr-input-${obj.id}" placeholder="Ajouter un résultat clé…" class="inp-sm" onkeydown="if(event.key==='Enter')addKR('${obj.id}')">
-              <button onclick="addKR('${obj.id}')" class="btn-sm">+ KR</button>
+            <div id="kr-body-${obj.id}" class="kr-body${open?' open':''}">
+              <div>
+                <div class="kr-list" style="margin-top:6px">
+                  ${totalKR===0
+                    ? `<div style="font-size:13px;color:var(--text-3);padding:8px 0">Aucun résultat clé</div>`
+                    : obj.keyResults.map(kr => `
+                      <div class="kr-row">
+                        <input type="checkbox" class="kr-check" id="kr-${kr.id}" ${kr.done?'checked':''} onchange="toggleKR('${obj.id}','${kr.id}')">
+                        <label for="kr-${kr.id}" class="kr-text${kr.done?' done':''}">${esc(kr.text)}</label>
+                        <button class="act-btn del" onclick="deleteKR('${obj.id}','${kr.id}')">✕</button>
+                      </div>`).join('')}
+                </div>
+                <div class="kr-add">
+                  <input type="text" id="kr-input-${obj.id}" placeholder="Ajouter un résultat clé…" class="inp-sm" onkeydown="if(event.key==='Enter')addKR('${obj.id}')">
+                  <button onclick="addKR('${obj.id}')" class="btn-sm">+ KR</button>
+                </div>
+              </div>
             </div>
           </div>`;
         }).join('')}
@@ -984,6 +1120,14 @@ function renderOKR() {
       <input type="text" id="new-obj-input" placeholder="Nouvel objectif…" class="inp" onkeydown="if(event.key==='Enter')addObjective()">
       <button onclick="addObjective()" class="btn">Ajouter</button>
     </div>`;
+}
+
+function toggleObjExpand(id) {
+  _objExpanded[id] = !_objExpanded[id];
+  const body    = document.getElementById(`kr-body-${id}`);
+  const chevron = document.getElementById(`kr-chevron-${id}`);
+  if (body)    body.classList.toggle('open', _objExpanded[id]);
+  if (chevron) chevron.classList.toggle('open', _objExpanded[id]);
 }
 
 function addObjective() {
